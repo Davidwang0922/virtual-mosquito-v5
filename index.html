@@ -92,8 +92,9 @@
         .mode-badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
         .badge { background: rgba(0,0,0,0.7); border: 1px solid #555; padding: 5px 12px; border-radius: 14px; font-size: 12px; color: #aaa; cursor: pointer; transition: all 0.3s; }
         .badge.active { border-color: #ff4444; color: #ff4444; background: rgba(255,68,68,0.2); }
-        .badge.swat-badge { border-color: #00ffff; color: #00ffff; background: rgba(0,255,255,0.15); }
-        .badge.swat-badge.cooldown { border-color: #666; color: #666; background: rgba(100,100,100,0.2); }
+        .badge.swat-badge { border-color: #00ffff; color: #00ffff; background: rgba(0,255,255,0.2); font-size: 14px; padding: 8px 16px; font-weight: bold; animation: swatGlow 1.5s infinite; }
+        .badge.swat-badge.cooldown { border-color: #666; color: #666; background: rgba(100,100,100,0.2); animation: none; }
+        @keyframes swatGlow { 0%, 100% { box-shadow: 0 0 8px rgba(0,255,255,0.4); } 50% { box-shadow: 0 0 20px rgba(0,255,255,0.9); } }
 
         /* 开始界面 */
         .start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10001; color: #fff; padding: 20px; text-align: center; }
@@ -128,7 +129,7 @@
         @keyframes biteFade { 0% { transform: scale(0); opacity: 1; } 20% { transform: scale(2); opacity: 0.9; } 100% { transform: scale(1); opacity: 0; } }
 
         /* 排行榜 */
-        .leaderboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 30000; animation: fadeIn 0.3s ease; }
+        .leaderboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 50000; animation: fadeIn 0.3s ease; }
         .leaderboard-overlay.active { display: flex; }
         .leaderboard-box { background: #1a1a1a; border: 1px solid #444; border-radius: 16px; padding: 25px; max-width: 340px; width: 90%; max-height: 70vh; overflow-y: auto; }
         .leaderboard-box h2 { color: #ff4444; text-align: center; margin-bottom: 20px; font-size: 20px; }
@@ -718,7 +719,7 @@
         const CONFIG = {
             TIME_LIMIT: 60, MAX_MOSQUITOES: 10, BREED_INTERVAL_BASE: 7000,
             GIANT_DELAY: 15000, ALERT_MIN_DELAY: 4000, ALERT_MAX_DELAY: 9000,
-            DIFFICULTY_STEP: 8, SWAT_COOLDOWN: 5000, SWAT_RADIUS: 150
+            DIFFICULTY_STEP: 8, SWAT_COOLDOWN: 1500, SWAT_RADIUS: 220
         };
 
         let gameMode = '60s', timeLeft = CONFIG.TIME_LIMIT, killCount = 0, mosquitoCount = 1;
@@ -831,7 +832,11 @@
         // ==================== 击杀音效（"啪"声） ====================
         function playSlapSound() {
             if (!audioCtx) initAudio();
-            
+            // 确保AudioContext处于运行状态（移动端需要用户手势后resume）
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             // 白噪声生成器（模拟拍击声）
             const bufferSize = audioCtx.sampleRate * 0.15;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -844,8 +849,8 @@
             noise.buffer = buffer;
             
             const noiseGain = audioCtx.createGain();
-            noiseGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-            noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            noiseGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
             
             // 低频冲击
             const impact = audioCtx.createOscillator();
@@ -854,8 +859,8 @@
             impact.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.1);
             
             const impactGain = audioCtx.createGain();
-            impactGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-            impactGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            impactGain.gain.setValueAtTime(0.7, audioCtx.currentTime);
+            impactGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
             
             noise.connect(noiseGain);
             noiseGain.connect(audioCtx.destination);
@@ -870,7 +875,10 @@
         // ==================== 电蚊拍音效 ====================
         function playZapSound() {
             if (!audioCtx) initAudio();
-            
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             const zapOsc = audioCtx.createOscillator();
             zapOsc.type = 'sawtooth';
             zapOsc.frequency.setValueAtTime(800, audioCtx.currentTime);
@@ -976,17 +984,23 @@
             
             swatCooldown = true;
             badgeSwat.classList.add('cooldown');
-            badgeSwat.textContent = '⚡ 冷却中';
-            
+            // 显示冷却倒计时
+            let cdRemaining = Math.ceil(CONFIG.SWAT_COOLDOWN / 1000);
+            badgeSwat.textContent = '⚡ ' + cdRemaining + 's';
+            const cdInterval = setInterval(() => {
+                cdRemaining--;
+                if (cdRemaining > 0) {
+                    badgeSwat.textContent = '⚡ ' + cdRemaining + 's';
+                }
+            }, 1000);
+
             setTimeout(() => {
+                clearInterval(cdInterval);
                 swatCooldown = false;
                 badgeSwat.classList.remove('cooldown');
                 badgeSwat.textContent = '⚡ 电蚊拍';
                 showToast('⚡ 电蚊拍已冷却完毕！');
-            }, CONFIG.SWAT_COOLDOWN);
-        }
-
-        function createElectricEffect(x, y) {
+            }, CONFIG.SWAT_COOLDOWN);function createElectricEffect(x, y) {
             // 电光圈
             const electric = document.createElement('div');
             electric.className = 'electric-swat';
@@ -1173,8 +1187,8 @@
                 }
             }, CONFIG.BREED_INTERVAL_BASE);
             
-            scheduleFakeAlert();
-            
+            // 已取消警告弹窗
+
             setTimeout(() => {
                 if (isFlying) createGiantMosquito();
             }, CONFIG.GIANT_DELAY);
@@ -1226,7 +1240,7 @@
                 
                 if (timeLeft <= 10) {
                     timerBox.classList.add('urgent');
-                    if (navigator.vibrate && timeLeft % 2 === 0) {
+                    if (navigator.vibrate && isFlying && timeLeft % 2 === 0) {
                         navigator.vibrate(60);
                     }
                 }
@@ -1246,18 +1260,11 @@
 
         // ==================== 假弹窗 ====================
         function showFakeAlert() {
-            const virusCount = Math.floor(Math.random() * 8) + 3;
-            document.getElementById('virusCount').textContent = virusCount;
-            fakeAlert.classList.add('active');
-            
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100, 50, 100, 50, 200]);
-            }
+            // 已禁用警告弹窗
         }
 
         function closeFakeAlert() {
             fakeAlert.classList.remove('active');
-            scheduleFakeAlert();
         }
 
         // ==================== 蚊子生成（7种品种） ====================
@@ -1328,7 +1335,7 @@
 
         // ==================== 击杀系统（带啪音效） ====================
         function killMosquito(el, event, species = 'female') {
-            if (el.classList.contains('dead') || isPaused) return;
+            if (el.classList.contains('dead') || isPaused || !isFlying) return;
             
             const points = SPECIES_POINTS[species] || 1;
             
@@ -1427,6 +1434,11 @@
             clearInterval(difficultyInterval);
             clearTimeout(alertTimeout);
             stopBuzzing();
+
+            // 立即停止所有震动
+            if (navigator.vibrate) {
+                navigator.vibrate(0);
+            }
             
             // 关闭电蚊拍模式
             if (swatMode) {
@@ -1445,6 +1457,8 @@
             else rankText = '💪 新手灭蚊员，再来一局！';
             
             document.getElementById('rankText').textContent = rankText;
+            // 关闭排行榜（如果开着的话）
+            document.getElementById('leaderboardOverlay').classList.remove('active');
             gameOverOverlay.classList.add('active');
             
             saveScore();
@@ -1452,6 +1466,9 @@
 
         function restartGame() {
             gameOverOverlay.classList.remove('active');
+            // 同时关闭排行榜和假弹窗
+            document.getElementById('leaderboardOverlay').classList.remove('active');
+            fakeAlert.classList.remove('active');
             killCount = 0;
             mosquitoCount = 1;
             combo = 0;
