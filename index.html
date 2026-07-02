@@ -783,38 +783,53 @@
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
+            // 移动端AudioContext默认暂停，必须resume
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
         }
 
         function startBuzzing() {
             if (!audioCtx) initAudio();
             stopBuzzing();
-            
-            oscillator = audioCtx.createOscillator();
-            gainNode = audioCtx.createGain();
-            lfo = audioCtx.createOscillator();
-            lfoGain = audioCtx.createGain();
-            
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
-            
-            lfo.frequency.setValueAtTime(15, audioCtx.currentTime);
-            lfoGain.gain.setValueAtTime(50, audioCtx.currentTime);
-            lfo.connect(lfoGain);
-            lfoGain.connect(oscillator.frequency);
-            lfo.start();
-            
-            gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.start();
-            
-            buzzInterval = setInterval(() => {
-                if (oscillator && isFlying) {
-                    const freq = 180 + Math.random() * 150;
-                    oscillator.frequency.linearRampToValueAtTime(freq, audioCtx.currentTime + 0.3);
-                }
-            }, 300);
+
+            // 移动端：确保AudioContext已激活
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            try {
+                oscillator = audioCtx.createOscillator();
+                gainNode = audioCtx.createGain();
+                lfo = audioCtx.createOscillator();
+                lfoGain = audioCtx.createGain();
+
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+
+                lfo.frequency.setValueAtTime(15, audioCtx.currentTime);
+                lfoGain.gain.setValueAtTime(50, audioCtx.currentTime);
+                lfo.connect(lfoGain);
+                lfoGain.connect(oscillator.frequency);
+                lfo.start();
+
+                gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+
+                buzzInterval = setInterval(() => {
+                    if (oscillator && isFlying) {
+                        const freq = 180 + Math.random() * 150;
+                        oscillator.frequency.linearRampToValueAtTime(freq, audioCtx.currentTime + 0.3);
+                    }
+                }, 300);
+            } catch(e) {
+                // 音频失败不影响游戏启动
+                console.log('Audio start failed, game continues without sound');
+                stopBuzzing();
+            }
         }
 
         function stopBuzzing() {
