@@ -781,16 +781,21 @@
         // ==================== 音频系统（修复：声音持续 + 击杀音效） ====================
         function initAudio() {
             if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                } catch(e) {
+                    // 浏览器不支持音频，静默运行
+                    audioCtx = null;
+                }
             }
-            // 移动端AudioContext默认暂停，必须resume
-            if (audioCtx.state === 'suspended') {
+            if (audioCtx && audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
         }
 
         function startBuzzing() {
             if (!audioCtx) initAudio();
+            if (!audioCtx) return; // 无音频支持，直接返回
             stopBuzzing();
 
             // 移动端：确保AudioContext已激活
@@ -847,6 +852,7 @@
         // ==================== 击杀音效（"啪"声） ====================
         function playSlapSound() {
             if (!audioCtx) initAudio();
+            if (!audioCtx) return; // 无音频支持
             // 确保AudioContext处于运行状态（移动端需要用户手势后resume）
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
@@ -890,6 +896,7 @@
         // ==================== 电蚊拍音效 ====================
         function playZapSound() {
             if (!audioCtx) initAudio();
+            if (!audioCtx) return; // 无音频支持
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
