@@ -1022,7 +1022,10 @@
                 badgeSwat.classList.remove('cooldown');
                 badgeSwat.textContent = '⚡ 电蚊拍';
                 showToast('⚡ 电蚊拍已冷却完毕！');
-            }, CONFIG.SWAT_COOLDOWN);function createElectricEffect(x, y) {
+            }, CONFIG.SWAT_COOLDOWN);
+        }
+
+        function createElectricEffect(x, y) {
             // 电光圈
             const electric = document.createElement('div');
             electric.className = 'electric-swat';
